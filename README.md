@@ -1,2 +1,7 @@
 # housepets-userscripts
-a few userscripts to help with housepets stuff
+a few userscripts i made with deepseek to help with housepets stuff
+## `character-and-arcs.js`
+adds character lists and arc labels underneath the panels on the https://rickgriffinstudios.com/housepets site.
+## `link-migrator.js`
+Attemps to migrate urls from https://www.housepetscomic.com/ to https://rickgriffinstudios.com/housepets.
+It is not perfect, some things will not work properly because my scrape had some holes, but it catches a lot of stuff.
