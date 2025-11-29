@@ -1,7 +1,9 @@
 # housepets-userscripts
 a few userscripts i made with deepseek to help with housepets stuff
-
 this uses an amalgamation of scraped stuff from the wayback machine, the old site, and the new site
+
+## For some reason this doesn't work on edge :(
+## Works on firefox (on my machine)
 
 ## `character-and-arcs.js`
 adds character lists and arc labels underneath the panels on the https://rickgriffinstudios.com/housepets site. Also adds search-by-character-and-arc
