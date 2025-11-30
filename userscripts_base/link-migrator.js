@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Housepets URL Migrator
 // @namespace    http://tampermonkey.net/
-// @version      1.4.0
+// @version      1.5.0
 // @description  Converts *some* legacy Housepets comic URLs to new format. (most work but some are a lil broken)
 // @author       vainstains
 // @match        *://*/*
@@ -11,8 +11,10 @@
 (function() {
     'use strict';
 
-    const comicData = []; // Your comic data here
-
+// <COMIC_DATA>
+// to be replaced with generated data
+const comicData = [];
+// </COMIC_DATA>
     // Create lookup maps
     const legacyUrlMap = new Map();
     const arcMap = new Map();
@@ -61,6 +63,7 @@
     }
 
     function migrateLink(link) {
+        console.log(`Migrating link: ${link.href}`);
         // Skip if already migrated
         if (link.hasAttribute('data-migrated')) return false;
 
@@ -189,9 +192,9 @@
     function init() {
         // Run once after load
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => scheduleMigration(500));
+            document.addEventListener('DOMContentLoaded', () => scheduleMigration(1500));
         } else {
-            scheduleMigration(500);
+            scheduleMigration(1500);
         }
 
         // Less aggressive mutation observer
