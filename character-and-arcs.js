@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Housepets Arc And Characrer Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
+// @version      1.1.2
 // @description  Add character and arc information to https://rickgriffinstudios.com/ panel pages and allow searching by character and arc
 // @author       vainstains
 // @match        https://rickgriffinstudios.com/housepets/comic/*/*
@@ -2170,7 +2170,12 @@ const comicData = [
 
         const arcInfo = document.createElement('span');
         if (comic.arc_name && comic.arc_name !== '??') {
-            arcInfo.textContent = `${comic.arc_name} (Arc #${comic.arc_number})`;
+            var content = `${comic.arc_name}`;
+            var arc_num = parseInt(comic.arc_number);
+            if (arc_num > 0) {
+                content += ` (Arc #${comic.arc_number})`;
+            }
+            arcInfo.textContent
             arcInfo.style.color = '#2196F3';
         } else {
             arcInfo.textContent = '??';
