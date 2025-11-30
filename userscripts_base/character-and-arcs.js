@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Housepets Arc And Characrer Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.5.0
 // @description  Add character and arc information to https://rickgriffinstudios.com/ panel pages and allow searching by character and arc
 // @author       vainstains
 // @match        https://rickgriffinstudios.com/housepets/comic/*/*
@@ -164,7 +164,7 @@ const comicData = [];
             if (arc_num > 0) {
                 content += ` (Arc #${comic.arc_number})`;
             }
-            arcInfo.textContent
+            arcInfo.textContent = content;
             arcInfo.style.color = '#2196F3';
         } else {
             arcInfo.textContent = '??';
@@ -225,20 +225,27 @@ const comicData = [];
 
     // Extract all unique characters and arcs for search
     const allCharacters = new Set();
-    const allArcs = new Set();
+    const allArcs = new Map(); // Changed to Map to store arc number with arc name
 
     comicData.forEach(comic => {
         if (comic.Characters) {
             comic.Characters.split(', ').forEach(char => allCharacters.add(char.trim()));
         }
         if (comic.arc_name && comic.arc_name !== '??') {
-            allArcs.add(comic.arc_name);
+            // Store arc with its number for sorting
+            allArcs.set(comic.arc_name, parseInt(comic.arc_number) || 0);
         }
     });
 
-    // Convert to sorted arrays
+    // Convert to sorted arrays - separate negative and positive arcs
     const sortedCharacters = Array.from(allCharacters).sort();
-    const sortedArcs = Array.from(allArcs);
+    const sortedArcs = Array.from(allArcs.entries())
+        .sort((a, b) => a[1] - b[1]) // Sort by arc number
+        .map(entry => entry[0]); // Extract just the arc names
+
+    // Split into negative and positive arcs
+    const negativeArcs = sortedArcs.filter(arcName => allArcs.get(arcName) < 0);
+    const positiveArcs = sortedArcs.filter(arcName => allArcs.get(arcName) >= 0);
 
     let selectedCharacters = [];
     let searchTimeout = null;
@@ -467,8 +474,16 @@ const comicData = [];
         defaultOption.textContent = 'All Arcs';
         arcSelect.appendChild(defaultOption);
 
-        // Add arc options
-        sortedArcs.forEach(arc => {
+        // Add negative arc options (special arcs) first
+        negativeArcs.forEach(arc => {
+            const option = document.createElement('option');
+            option.value = arc;
+            option.textContent = arc;
+            arcSelect.appendChild(option);
+        });
+
+        // Add positive arc options
+        positiveArcs.forEach(arc => {
             const option = document.createElement('option');
             option.value = arc;
             option.textContent = arc;
