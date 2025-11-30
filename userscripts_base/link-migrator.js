@@ -74,18 +74,19 @@ const comicData = [];
     }
 
     function migrateLink(link) {
-        const originalUrl = link.href;
+         const originalUrl = link.href;
         let newUrl = null;
         let migrationType = '';
 
-        // Check if it's a comic URL
-        if (legacyUrlMap.has(originalUrl)) {
-            newUrl = migrateComicUrl(originalUrl);
+        // Check if it's a comic URL (handle both http and https)
+        const normalizedUrl = originalUrl.replace(/^http:/, 'https:');
+        if (legacyUrlMap.has(normalizedUrl)) {
+            newUrl = migrateComicUrl(normalizedUrl);
             migrationType = 'comic';
         }
-        // Check if it's an arc chapter URL
-        else if (originalUrl.includes('/chapter/')) {
-            newUrl = migrateArcUrl(originalUrl);
+        // Check if it's an arc chapter URL (handle both http and https)
+        else if (originalUrl.replace(/^http:/, 'https:').includes('/chapter/')) {
+            newUrl = migrateArcUrl(originalUrl.replace(/^http:/, 'https:'));
             migrationType = 'arc';
         }
 
@@ -120,24 +121,32 @@ const comicData = [];
         let text = node.nodeValue;
         let modified = false;
 
-        // Migrate comic URLs in text
+        // Migrate comic URLs in text (handle both http and https)
         legacyUrlMap.forEach((comicId, legacyUrl) => {
-            if (text.includes(legacyUrl)) {
+            // Create http version of the URL
+            const httpUrl = legacyUrl.replace(/^https:/, 'http:');
+            const regex = new RegExp(legacyUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+            const httpRegex = new RegExp(httpUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+
+            if (text.includes(legacyUrl) || text.includes(httpUrl)) {
                 const newUrl = `https://rickgriffinstudios.com/housepets/comic/${comicId}/#comic-page`;
-                const regex = new RegExp(legacyUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
                 text = text.replace(regex, newUrl);
+                text = text.replace(httpRegex, newUrl);
                 modified = true;
             }
         });
 
-        // Migrate arc chapter URLs in text
+        // Migrate arc chapter URLs in text (handle both http and https)
         const arcUrlRegex = /https?:\/\/(www\.)?housepetscomic\.com\/chapter\/[^\/\s]+\/?/g;
         const arcMatches = text.match(arcUrlRegex);
         if (arcMatches) {
             arcMatches.forEach(arcUrl => {
-                const newUrl = migrateArcUrl(arcUrl);
+                // Normalize to https for processing
+                const normalizedArcUrl = arcUrl.replace(/^http:/, 'https:');
+                const newUrl = migrateArcUrl(normalizedArcUrl);
                 if (newUrl) {
-                    text = text.replace(new RegExp(arcUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newUrl);
+                    const regex = new RegExp(arcUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                    text = text.replace(regex, newUrl);
                     modified = true;
                 }
             });
