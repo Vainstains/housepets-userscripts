@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Housepets URL Migrator
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.4.0
 // @description  Converts *some* legacy Housepets comic URLs to new format. (most work but some are a lil broken)
 // @author       vainstains
 // @match        *://*/*
@@ -11,10 +11,7 @@
 (function() {
     'use strict';
 
-// <COMIC_DATA>
-// to be replaced with generated data
-const comicData = [];
-// </COMIC_DATA>
+    const comicData = []; // Your comic data here
 
     // Create lookup maps
     const legacyUrlMap = new Map();
@@ -23,137 +20,117 @@ const comicData = [];
     comicData.forEach(comic => {
         if (comic.Page_URL && comic.ID) {
             legacyUrlMap.set(comic.Page_URL, comic.ID);
+            // Also add http version to avoid regex processing
+            legacyUrlMap.set(comic.Page_URL.replace(/^https:/, 'http:'), comic.ID);
         }
 
         if (comic.arc_name && comic.arc_name !== '??') {
             const normalizedArc = normalizeArcTitle(comic.arc_name);
             if (!arcMap.has(normalizedArc)) {
-                // Store the first comic ID for this arc
                 arcMap.set(normalizedArc, comic.ID);
             }
         }
     });
 
-    // JavaScript version of normalizeArcTitle
     function normalizeArcTitle(title) {
-        if (!title) {
-            return "";
-        }
-
-        title = title.toLowerCase();
-        title = title.replace(/[^\w\s]/g, ' ');
-        title = title.replace(/\s+/g, ' ');
-        const words = title.split(' ');
-
-        return words.join('').trim();
+        if (!title) return "";
+        return title.toLowerCase()
+            .replace(/[^\w\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .split(' ')
+            .join('')
+            .trim();
     }
 
+    // Pre-compiled regex patterns
+    const arcUrlRegex = /https?:\/\/(www\.)?housepetscomic\.com\/chapter\/[^\/\s]+\/?/g;
+
     function migrateComicUrl(legacyUrl) {
-        const comicId = legacyUrlMap.get(legacyUrl);
-        if (comicId) {
-            return `https://rickgriffinstudios.com/housepets/comic/${comicId}/#comic-page`;
-        }
-        return null;
+        const normalizedUrl = legacyUrl.replace(/^http:/, 'https:');
+        const comicId = legacyUrlMap.get(normalizedUrl) || legacyUrlMap.get(legacyUrl);
+        return comicId ? `https://rickgriffinstudios.com/housepets/comic/${comicId}/#comic-page` : null;
     }
 
     function migrateArcUrl(arcUrl) {
-        // Extract arc name from URL
         const arcMatch = arcUrl.match(/\/chapter\/([^\/]+)\/?$/);
         if (!arcMatch) return null;
 
         const arcNameFromUrl = arcMatch[1].replace(/-/g, ' ');
         const normalizedArc = normalizeArcTitle(arcNameFromUrl);
-
-        // Find the first comic ID for this arc
-        const firstComicId = arcMap.get(normalizedArc);
-        if (firstComicId) {
-            return `https://rickgriffinstudios.com/housepets/comic/${firstComicId}/#comic-page`;
-        }
-
-        return null;
+        return arcMap.get(normalizedArc) || null;
     }
 
     function migrateLink(link) {
-         const originalUrl = link.href;
+        // Skip if already migrated
+        if (link.hasAttribute('data-migrated')) return false;
+
+        const originalUrl = link.href;
         let newUrl = null;
         let migrationType = '';
 
-        // Check if it's a comic URL (handle both http and https)
-        const normalizedUrl = originalUrl.replace(/^http:/, 'https:');
-        if (legacyUrlMap.has(normalizedUrl)) {
-            newUrl = migrateComicUrl(normalizedUrl);
+        // Direct map lookup - much faster than regex
+        newUrl = migrateComicUrl(originalUrl);
+        if (newUrl) {
             migrationType = 'comic';
-        }
-        // Check if it's an arc chapter URL (handle both http and https)
-        else if (originalUrl.replace(/^http:/, 'https:').includes('/chapter/')) {
-            newUrl = migrateArcUrl(originalUrl.replace(/^http:/, 'https:'));
-            migrationType = 'arc';
+        } else if (originalUrl.includes('/chapter/')) {
+            newUrl = migrateArcUrl(originalUrl);
+            if (newUrl) {
+                newUrl = `https://rickgriffinstudios.com/housepets/comic/${newUrl}/#comic-page`;
+                migrationType = 'arc';
+            }
         }
 
         if (newUrl) {
-            // Store original URL in data attribute for reference
             link.setAttribute('data-original-url', originalUrl);
             link.setAttribute('data-migration-type', migrationType);
+            link.setAttribute('data-migrated', 'true');
             link.href = newUrl;
 
-            // Add visual indicator (different colors for comic vs arc migration)
             const borderColor = migrationType === 'comic' ? '#4CAF50' : '#2196F3';
-            const backgroundColor = migrationType === 'comic' ? '#f8fff8' : '#f0f8ff';
-
             link.style.cssText = `
                 border-left: 3px solid ${borderColor} !important;
                 padding-left: 5px !important;
-                background-color: ${backgroundColor} !important;
-                transition: all 0.3s ease !important;
+                background-color: ${migrationType === 'comic' ? '#f8fff8' : '#f0f8ff'} !important;
             `;
 
-            // Add tooltip
-            const typeText = migrationType === 'comic' ? 'comic' : 'arc chapter';
-            link.title = `Migrated ${typeText} from: ${originalUrl}`;
-
-            console.log(`Migrated ${migrationType} URL: ${originalUrl} -> ${newUrl}`);
+            link.title = `Migrated ${migrationType} from: ${originalUrl}`;
             return true;
         }
+
         return false;
     }
 
+    // Much more efficient text processing
     function migrateTextContent(node) {
-        let text = node.nodeValue;
+        const text = node.nodeValue;
+        
+        // Only process nodes that actually contain housepets URLs
+        if (!text.includes('housepetscomic.com')) return false;
+
+        let newText = text;
         let modified = false;
 
-        // Migrate comic URLs in text (handle both http and https)
-        legacyUrlMap.forEach((comicId, legacyUrl) => {
-            // Create http version of the URL
-            const httpUrl = legacyUrl.replace(/^https:/, 'http:');
-            const regex = new RegExp(legacyUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-            const httpRegex = new RegExp(httpUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        // Process arc URLs first (less common)
+        newText = newText.replace(arcUrlRegex, match => {
+            const newUrl = migrateArcUrl(match);
+            if (newUrl) {
+                modified = true;
+                return `https://rickgriffinstudios.com/housepets/comic/${newUrl}/#comic-page`;
+            }
+            return match;
+        });
 
-            if (text.includes(legacyUrl) || text.includes(httpUrl)) {
+        // Process comic URLs using the map
+        legacyUrlMap.forEach((comicId, legacyUrl) => {
+            if (newText.includes(legacyUrl)) {
                 const newUrl = `https://rickgriffinstudios.com/housepets/comic/${comicId}/#comic-page`;
-                text = text.replace(regex, newUrl);
-                text = text.replace(httpRegex, newUrl);
+                newText = newText.split(legacyUrl).join(newUrl);
                 modified = true;
             }
         });
 
-        // Migrate arc chapter URLs in text (handle both http and https)
-        const arcUrlRegex = /https?:\/\/(www\.)?housepetscomic\.com\/chapter\/[^\/\s]+\/?/g;
-        const arcMatches = text.match(arcUrlRegex);
-        if (arcMatches) {
-            arcMatches.forEach(arcUrl => {
-                // Normalize to https for processing
-                const normalizedArcUrl = arcUrl.replace(/^http:/, 'https:');
-                const newUrl = migrateArcUrl(normalizedArcUrl);
-                if (newUrl) {
-                    const regex = new RegExp(arcUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                    text = text.replace(regex, newUrl);
-                    modified = true;
-                }
-            });
-        }
-
         if (modified) {
-            node.nodeValue = text;
+            node.nodeValue = newText;
         }
 
         return modified;
@@ -162,7 +139,7 @@ const comicData = [];
     function migrateAllUrls() {
         let migratedCount = 0;
 
-        // Migrate all <a> tags
+        // Process links first
         const links = document.getElementsByTagName('a');
         for (let link of links) {
             if (migrateLink(link)) {
@@ -170,83 +147,77 @@ const comicData = [];
             }
         }
 
-        // Migrate text content (for forum posts, comments, etc.)
-        const walker = document.createTreeWalker(
-            document.body,
-            NodeFilter.SHOW_TEXT,
-            {
-                acceptNode: function(node) {
-                    // Only process text nodes that aren't inside script or style tags
-                    const parent = node.parentElement;
-                    if (parent && (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE')) {
-                        return NodeFilter.FILTER_REJECT;
+        // Only process text nodes if we're on a page that likely contains housepets URLs
+        if (document.body.innerText.includes('housepetscomic.com')) {
+            const walker = document.createTreeWalker(
+                document.body,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode: function(node) {
+                        const parent = node.parentElement;
+                        if (parent && (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.tagName === 'A')) {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+                        // Only process nodes that contain housepets URLs
+                        return node.nodeValue.includes('housepetscomic.com') ? 
+                               NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
                     }
-                    return NodeFilter.FILTER_ACCEPT;
-                }
-            },
-            false
-        );
+                },
+                false
+            );
 
-        let textNode;
-        while (textNode = walker.nextNode()) {
-            if (migrateTextContent(textNode)) {
-                migratedCount++;
+            let textNode;
+            while (textNode = walker.nextNode()) {
+                if (migrateTextContent(textNode)) {
+                    migratedCount++;
+                }
             }
         }
 
         if (migratedCount > 0) {
             console.log(`Housepets URL Migrator: Migrated ${migratedCount} URLs`);
-
-            // Log available arcs for debugging
-            console.log('Available arcs:', Array.from(arcMap.keys()));
         }
     }
 
-    function waitForPageLoad() {
-        // If document is already loaded, run immediately
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-            setTimeout(migrateAllUrls, 100);
+    // Debounced execution
+    let migrationTimeout;
+    function scheduleMigration(delay = 100) {
+        clearTimeout(migrationTimeout);
+        migrationTimeout = setTimeout(migrateAllUrls, delay);
+    }
+
+    function init() {
+        // Run once after load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => scheduleMigration(500));
         } else {
-            // Wait for full page load
-            window.addEventListener('load', function() {
-                setTimeout(migrateAllUrls, 500);
-            });
+            scheduleMigration(500);
         }
 
-        // Also run after a delay to catch any dynamic content
-        setTimeout(migrateAllUrls, 1000);
-        setTimeout(migrateAllUrls, 3000);
+        // Less aggressive mutation observer
+        const observer = new MutationObserver((mutations) => {
+            let hasNewLinks = false;
+            for (let mutation of mutations) {
+                for (let node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        if (node.tagName === 'A' || node.querySelector('a')) {
+                            hasNewLinks = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasNewLinks) break;
+            }
+            if (hasNewLinks) {
+                scheduleMigration(300);
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
     }
 
-    // Initialize
-    waitForPageLoad();
-
-    // Watch for dynamic content changes
-    const observer = new MutationObserver(function(mutations) {
-        let shouldMigrate = false;
-        for (let mutation of mutations) {
-            if (mutation.addedNodes.length) {
-                shouldMigrate = true;
-                break;
-            }
-        }
-        if (shouldMigrate) {
-            setTimeout(migrateAllUrls, 100);
-        }
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    // Watch for URL changes in SPAs
-    let currentUrl = window.location.href;
-    setInterval(function() {
-        if (window.location.href !== currentUrl) {
-            currentUrl = window.location.href;
-            setTimeout(migrateAllUrls, 500);
-        }
-    }, 1000);
-
+    init();
 })();
