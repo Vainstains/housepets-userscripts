@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Housepets URL Migrator
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
+// @version      1.2.0
 // @description  Converts *some* legacy Housepets comic URLs to new format. (most work but some are a lil broken)
 // @author       vainstains
 // @match        *://*/*

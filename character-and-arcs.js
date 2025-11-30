@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Housepets Arc And Characrer Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.1.2
+// @version      1.2.0
 // @description  Add character and arc information to https://rickgriffinstudios.com/ panel pages and allow searching by character and arc
 // @author       vainstains
 // @match        https://rickgriffinstudios.com/housepets/comic/*/*
